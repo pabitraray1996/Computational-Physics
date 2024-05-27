@@ -1,41 +1,89 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from math import *
+import emcee
+import corner
+
+# Load data
+data = np.loadtxt('data.txt')
+x = data[:, 1]
+y = data[:, 2]
+sigma = data[:, 3]
+
+def model(x, a, b, c):
+    return a * x**2 + b * x + c
+
+def log_likelihood(theta, x, y, sigma):
+    a, b, c = theta
+    model_y = model(x, a, b, c)
+    return -0.5 * np.sum(((y - model_y) / sigma) ** 2)
+
+def log_prior(theta):
+    a, b, c = theta
+    # Uniform priors, change the limits if needed
+    if -1000.0 < a < 1000.0 and -1000.0 < b < 1000.0 and -1000.0 < c < 1000.0:
+        return 0.0
+    return -np.inf
+
+def log_posterior(theta, x, y, sigma):
+    lp = log_prior(theta)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp + log_likelihood(theta, x, y, sigma)
 
 
-meshlim = 100
-meshsize = 3001
-x = np.linspace(-meshlim, meshlim, meshsize)
-y = np.linspace(-meshlim, meshlim, meshsize)
-# full coordinate arrays
-xx, yy = np.meshgrid(x, y)
-zz = np.exp(-(xx**2 + yy**2))
-xx.shape, yy.shape, zz.shape
+# Initial guess
+initial = np.array([0.0, 0.0, 0.0])
+ndim = len(initial)
+nwalkers = 50
+nsteps = 4000
 
-Delta = 2*meshlim/(meshsize-1)
-kx = (2*np.pi/(meshsize*Delta))*np.arange(-(meshsize-1)/2,(meshsize-1)/2+1)
-ky = (2*np.pi/(meshsize*Delta))*np.arange(-(meshsize-1)/2,(meshsize-1)/2+1)
-kxx, kyy = np.meshgrid(kx, ky)
-kzz = 0.5*np.exp(-(kxx**2+kyy**2)/4)
+# Initialize walkers
+pos = initial + 1e-4 * np.random.randn(nwalkers, ndim)
 
+# Run MCMC
+sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior, args=(x, y, sigma))
+sampler.run_mcmc(pos, nsteps, progress=True)
 
-omega = np.fft.fft2(zz,norm="ortho")
-omega = np.fft.fftshift(omega)
+samples = sampler.get_chain(discard=1000, thin=10, flat=True)
 
 
-factor = (Delta**2)*(meshsize/(2*np.pi))*np.exp(-1j*(kxx*np.min(x)+kyy*np.min(y)))
-ft_omega = factor*omega
+# Get the median and 1-sigma uncertainties
+a_median, b_median, c_median = np.median(samples, axis=0)
+a_std, b_std, c_std = np.std(samples, axis=0)
 
+print(f"a = {a_median:.3f} ± {a_std:.3f}")
+print(f"b = {b_median:.3f} ± {b_std:.3f}")
+print(f"c = {c_median:.3f} ± {c_std:.3f}")
 
-fig1 = plt.figure(figsize=(5,5))
-ax1 = plt.axes(projection='3d')
-ax1.contour3D(kxx, kyy, ft_omega,200)
-ax1.view_init(15, 35)
-
-fig2 = plt.figure(figsize=(5,5))
-ax2 = plt.axes(projection='3d')
-ax2.contour3D(kx, ky, kzz, 200)
-ax2.view_init(15, 35)
-
-
+# Plot the chains
+f1, axes = plt.subplots(3, figsize=(10, 7), sharex=True)
+labels = ["a", "b", "c"]
+for i in range(ndim):
+    ax = axes[i]
+    ax.plot(sampler.get_chain()[:, :, i], "k", alpha=0.3)
+    ax.set_xlim(0, len(sampler.get_chain()))
+    ax.set_ylabel(labels[i])
+axes[-1].set_xlabel("step number")
 plt.show()
+
+f1.savefig('Figure_10(a).pdf',bbox_inches='tight')
+
+# Plot the corner plot
+f2 = corner.corner(samples, labels=labels, truths=[a_median, b_median, c_median])
+plt.show()
+
+f2.savefig('Figure_10(b).pdf',bbox_inches='tight')
+
+# Plot the data with the best-fit model and 200 random models from the posterior
+f3=plt.figure()
+plt.errorbar(x, y, yerr=sigma, fmt=".k", capsize=0)
+x_fit = np.linspace(min(x), max(x), 1000)
+for a, b, c in samples[np.random.randint(len(samples), size=200)]:
+    plt.plot(x_fit, model(x_fit, a, b, c), color="gray", alpha=0.1)
+plt.plot(x_fit, model(x_fit, a_median, b_median, c_median), color="red", label="Best-fit model")
+plt.legend()
+plt.xlabel("x")
+plt.ylabel("y")
+plt.show()
+
+f3.savefig('Figure_10(c).pdf',bbox_inches='tight')

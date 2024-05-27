@@ -1,53 +1,40 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Define the constant function
-def constant_function(x, c):
-    return np.ones_like(x) * c
+# Define the target distribution function f(x)
+def target_distribution(x):
+    return np.sqrt(2 / np.pi) * np.exp(-x**2 / 2)
 
-# Define the Fourier transform
-def fourier_transform(x, f_x):
-    return np.fft.fftshift(np.fft.fft(f_x))
+# Rejection sampling function
+def rejection_sampling(n_samples):
+    samples = []
+    c = np.sqrt(2 / np.pi)  # Normalizing constant
 
-# Define the frequency array
-def frequency_array(x):
-    dx = x[1] - x[0]
-    N = len(x)
-    freq = np.fft.fftfreq(N, dx)
-    return np.fft.fftshift(freq)
+    while len(samples) < n_samples:
+        x = np.random.uniform(0,20)  # Sample from the proposal distribution
+        u = np.random.uniform(0, c)
+        if u < target_distribution(x):
+            samples.append(x)
 
-# Define the x range
-x = np.linspace(-10, 10, 1000)
+    return np.array(samples)
 
-# Define the constant value
-c = 5.0
+# Generate 10,000 random numbers using rejection sampling
+n_samples = 10000
+random_numbers = rejection_sampling(n_samples)
 
-# Compute the constant function
-f_x = constant_function(x, c)
+f= plt.figure()
+# Plot the density histogram
+plt.hist(random_numbers, bins=100, density=True, alpha=0.6, color='g', label='Histogram')
 
-# Compute the Fourier transform
-F_k = fourier_transform(x, f_x)
+# Plot the target distribution for comparison
+x = np.linspace(0, max(random_numbers), 1000)
+plt.plot(x, target_distribution(x), 'r-', lw=2, label='Target Distribution')
 
-# Get the frequency array
-freq = frequency_array(x)
-
-# Plot the constant function
-plt.subplot(2, 1, 1)
-plt.plot(x, f_x)
-plt.title('Constant Function: f(x) = {}'.format(c))
-plt.xlabel('x')
-plt.ylabel('f(x)')
-plt.grid()
-
-# Plot the Fourier transform
-plt.subplot(2, 1, 2)
-plt.plot(freq, np.abs(F_k))
-plt.title('Fourier Transform')
-plt.xlabel('Frequency (k)')
-plt.ylabel('|F(k)|')
-plt.grid()
-plt.xlim(-5, 5)
-plt.ylim(0, max(np.abs(F_k)) + 1)
-
-plt.tight_layout()
+# Labels and title
+plt.xlabel('Value')
+plt.ylabel('Density')
+plt.title('Density Histogram of Rejection Sampled Numbers vs. Target Distribution')
+plt.legend()
 plt.show()
+
+f.savefig('Figure_6.pdf',bbox_inches='tight')

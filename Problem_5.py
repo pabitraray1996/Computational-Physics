@@ -1,47 +1,35 @@
 import numpy as np
-import time
 import matplotlib.pyplot as plt
 
+def box_muller_transform(u1, u2):
+    z0 = np.sqrt(-2.0 * np.log(u1)) * np.cos(2.0 * np.pi * u2)
+    z1 = np.sqrt(-2.0 * np.log(u1)) * np.sin(2.0 * np.pi * u2)
+    return z0, z1
 
-def dft_m(x,N):
-        xt = []
-        for i in range(N):
-            s = 0
-            for j in range(N):
-                s = s+x[j]*np.exp(-1j*2*np.pi*i*j/N)
-            xt.append(s/(N)**0.5)
-        return xt
+# Generate 10,000 random numbers using the Box-Muller transform
+n_samples = 10000
+u1 = np.random.rand(n_samples // 2)
+u2 = np.random.rand(n_samples // 2)
 
+z0, z1 = box_muller_transform(u1, u2)
 
-manual_t = []
-numpy_t = []
-s = []
-itr = 50
+# Combine the two sets of generated numbers
+gaussian_numbers = np.concatenate((z0, z1))
 
-for p in range(4,101):
-    m_t = []
-    n_t = []
-    for l in range(itr):
-        x = []
-        for k in range(p):
-            x.append(np.random.randint(0,10))
-        N = len(x)
-        
+f= plt.figure()
+# Plot the density histogram
+plt.hist(gaussian_numbers, bins=100, density=True, alpha=0.6, color='g', label='Histogram')
 
-        t1 = time.time_ns()
-        dft_ex = dft_m(x,N)
-        t2 = time.time_ns()
-        dft_np = np.fft.fft(x,norm='ortho')
-        t3 = time.time_ns()
-        m_t.append(t2-t1)
-        n_t.append(t3-t2)
-    manual_t.append(sum(m_t)/len(m_t))
-    numpy_t.append(sum(n_t)/len(n_t))    
-    s.append(p)
-    
-plt.plot(s,manual_t,label='manual')
-plt.plot(s,numpy_t,label='numpy')
-plt.xlabel('Size of the sample')
-plt.ylabel('Time (ns)')
+# Plot the Gaussian PDF for comparison
+x = np.linspace(-4, 4, 1000)
+gaussian_pdf = (1 / np.sqrt(2 * np.pi)) * np.exp(-0.5 * x**2)
+plt.plot(x, gaussian_pdf, 'r-', lw=2, label='Gaussian PDF')
+
+# Labels and title
+plt.xlabel('Value')
+plt.ylabel('Density')
+plt.title('Density Histogram of Box-Muller Generated Numbers vs. Gaussian PDF')
 plt.legend()
 plt.show()
+
+f.savefig('Figure_5.pdf',bbox_inches='tight')
